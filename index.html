@@ -1,1 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flashcards</title>
+<style>
+  :root{
+    --color-bg: #C6C0B9;
+    --color-surface: #D6B588;
+    --color-secondary: #705E46;
+    --color-primary: #422701;
+    --color-text: #2b1d0e;
+    --color-text-muted: #5a4632;
+    --color-text-on-primary: #f3ead9;
+    --color-text-on-secondary: #f3ead9;
+    --color-border: #705E46;
+    --color-primary-hover: #341f00;
+    --color-secondary-hover: #5b4a37;
+    --color-surface-hover: #cdac78;
+    --shadow: 0 2px 10px rgba(0,0,0,.14);
+  }
+  *{ box-sizing:border-box; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    max-width:900px;margin:24px auto;padding:0 16px;
+    background:var(--color-bg);color:var(--color-text);
+    transition:background-color .35s ease,color .35s ease;
+  }
+  h1{font-size:21px;font-weight:700;letter-spacing:-.01em;color:var(--color-primary);margin-bottom:14px;transition:color .35s ease;}
+  h2{font-size:15px;color:var(--color-primary);margin:18px 0 8px;transition:color .35s ease;}
+  h3{font-size:14px;margin:0 0 4px;}
+
+  nav{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;}
+  nav button{
+    padding:9px 14px;cursor:pointer;border:1px solid var(--color-border);border-radius:8px;
+    background:var(--color-surface);color:var(--color-text);font-size:13px;font-weight:500;
+    transition:background-color .2s ease,color .2s ease,transform .15s ease,box-shadow .2s ease,border-color .2s ease;
+  }
+  nav button:hover{background:var(--color-surface-hover);transform:translateY(-1px);box-shadow:var(--shadow);}
+  nav button:active{transform:translateY(0) scale(.97);}
+  nav button.active{background:var(--color-primary);color:var(--color-text-on-primary);border-color:var(--color-primary);box-shadow:var(--shadow);}
+
+  section{
+    display:none;border:1px solid var(--color-border);padding:20px;border-radius:12px;
+    background:var(--color-surface);box-shadow:var(--shadow);
+    transition:background-color .35s ease,border-color .35s ease;
+  }
+  section.active{display:block;animation:fadeSlideIn .35s ease both;}
+
+  @keyframes fadeSlideIn{ from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
+  @keyframes pulseIn{ from{opacity:0;transform:scale(.97);} to{opacity:1;transform:scale(1);} }
+
+  textarea{
+    width:100%;box-sizing:border-box;font-family:"SF Mono",Consolas,monospace;padding:8px;
+    border-radius:8px;border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text);
+    transition:background-color .3s ease,border-color .3s ease,color .3s ease;
+  }
+  table{border-collapse:collapse;width:100%;margin-top:8px;border-radius:8px;overflow:hidden;}
+  th{background:var(--color-secondary);color:var(--color-text-on-secondary);font-weight:600;transition:background-color .3s ease;}
+  th,td{border:1px solid var(--color-border);padding:6px 8px;font-size:13px;text-align:left;transition:border-color .3s ease;}
+  tbody tr{transition:background-color .15s ease;}
+  tbody tr:hover{background:var(--color-surface-hover);}
+
+  select,input[type=text],input[type=file]{
+    padding:6px 8px;border-radius:6px;border:1px solid var(--color-border);
+    background:var(--color-bg);color:var(--color-text);font-size:13px;
+    transition:background-color .3s ease,border-color .3s ease,color .3s ease;
+  }
+  input[type=range]{accent-color:var(--color-primary);}
+  input[type=color]{border:1px solid var(--color-border);border-radius:6px;width:44px;height:32px;cursor:pointer;padding:2px;background:var(--color-bg);}
+
+  button{
+    font-family:inherit;border:1px solid var(--color-border);border-radius:7px;
+    background:var(--color-secondary);color:var(--color-text-on-secondary);padding:7px 12px;font-size:13px;
+    cursor:pointer;transition:background-color .2s ease,transform .12s ease,box-shadow .2s ease,border-color .2s ease;
+  }
+  button:hover{background:var(--color-secondary-hover);box-shadow:var(--shadow);transform:translateY(-1px);}
+  button:active{transform:translateY(0) scale(.96);}
+  button:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none;}
+
+  .row{margin-bottom:12px;}
+  .deckItem{
+    padding:10px 12px;border:1px solid var(--color-border);margin-bottom:8px;border-radius:9px;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;
+    background:var(--color-bg);animation:fadeSlideIn .3s ease both;
+    transition:background-color .3s ease,box-shadow .2s ease,border-color .3s ease;
+  }
+  .deckItem:hover{box-shadow:var(--shadow);}
+  .deckItem button{margin-left:6px;}
+
+  #card{
+    border:2px solid var(--color-primary);border-radius:14px;padding:48px 22px;min-height:120px;
+    text-align:center;font-size:21px;cursor:pointer;margin-bottom:14px;background:var(--color-bg);
+    box-shadow:var(--shadow);
+    transition:transform .16s cubic-bezier(.4,0,.2,1),background-color .3s ease,border-color .3s ease;
+  }
+  #card:hover{transform:translateY(-2px);}
+  #card.card-flip-out{transform:scaleX(.05);}
+
+  .ratebtns button{padding:10px 16px;margin-right:8px;font-size:14px;}
+
+  .small{font-size:12px;color:var(--color-text-muted);transition:color .3s ease;}
+  .hidden{display:none !important;}
+  .statline{margin:4px 0;}
+  .warn{color:#a02c2c;}
+
+  /* Appearance tab */
+  .palette-gallery{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:20px;}
+  .palette-card{
+    border:2px solid var(--color-border);border-radius:12px;padding:12px;width:230px;cursor:pointer;
+    background:var(--color-bg);transition:transform .15s ease,box-shadow .2s ease,border-color .2s ease;
+    animation:pulseIn .25s ease both;
+  }
+  .palette-card:hover{transform:translateY(-3px);box-shadow:var(--shadow);}
+  .palette-card.selected{border-color:var(--color-primary);box-shadow:0 0 0 3px rgba(0,0,0,.12);}
+  .palette-swatches{display:flex;border-radius:8px;overflow:hidden;height:36px;margin-bottom:8px;}
+  .palette-swatches div{flex:1;transition:background-color .3s ease;}
+  .palette-role-list{list-style:none;padding:0;margin:6px 0 0;font-size:11px;}
+  .palette-role-list li{display:flex;justify-content:space-between;gap:6px;padding:1px 0;}
+  .swatch-dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle;}
+
+  .custom-builder{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px;}
+  .custom-role{display:flex;flex-direction:column;gap:6px;width:190px;}
+  .custom-role label{font-size:12px;font-weight:600;}
+  .custom-role .note{font-size:11px;color:var(--color-text-muted);}
+  .custom-role-row{display:flex;align-items:center;gap:8px;}
+</style>
+</head>
+<body>
+
+<h1>Flashcards (SM-2 / FSRS spaced repetition)</h1>
+<nav>
+  <button data-tab="decksTab" class="active">Decks</button>
+  <button data-tab="importTab">Import</button>
+  <button data-tab="studyTab">Study</button>
+  <button data-tab="browseTab">Browse / Edit</button>
+  <button data-tab="settingsTab">Settings</button>
+  <button data-tab="appearanceTab">Appearance</button>
+</nav>
+
+<!-- DECKS -->
+<section id="decksTab" class="active">
+  <h2>Your decks</h2>
+  <div class="row">
+    <input type="text" id="newDeckName" placeholder="New deck name">
+    <button id="createDeckBtn">Create deck</button>
+  </div>
+  <div id="deckList"></div>
+</section>
+
+<!-- IMPORT -->
+<section id="importTab">
+  <h2>Import cards</h2>
+  <div class="row">
+    Target deck:
+    <select id="importDeckSelect"></select>
+    or create new: <input type="text" id="importNewDeckName" placeholder="new deck name (optional)">
+  </div>
+
+  <div class="row">
+    <label>Upload .csv or .txt file: <input type="file" id="fileInput" accept=".csv,.txt"></label>
+  </div>
+  <div class="row">
+    <div class="small">...or paste text below</div>
+    <textarea id="importText" rows="8" placeholder="front,back
+front,back"></textarea>
+  </div>
+
+  <div class="row">
+    Card separator (splits text into individual cards):
+    <select id="cardSepSelect">
+      <option value="\n">New line</option>
+      <option value="\n\n">Blank line (paragraph)</option>
+      <option value=";;;">;;; (triple semicolon)</option>
+      <option value="custom">Custom...</option>
+    </select>
+    <input type="text" id="cardSepCustom" class="hidden" placeholder="custom card separator">
+  </div>
+
+  <div class="row">
+    Face separator (splits each card into front / back):
+    <select id="faceSepSelect">
+      <option value=",">Comma , (CSV)</option>
+      <option value=";">Semicolon ;</option>
+      <option value="\t">Tab</option>
+      <option value="|">Pipe |</option>
+      <option value="::">Double colon ::</option>
+      <option value=" - ">Dash  -  (with spaces)</option>
+      <option value="custom">Custom...</option>
+    </select>
+    <input type="text" id="faceSepCustom" class="hidden" placeholder="custom face separator">
+  </div>
+
+  <div class="row">
+    <label><input type="checkbox" id="skipHeader"> First row is a header (skip it)</label>
+  </div>
+
+  <div class="row">
+    <button id="previewBtn">Preview</button>
+    <button id="confirmImportBtn" disabled>Confirm import</button>
+    <span id="importMsg" class="warn"></span>
+  </div>
+
+  <div id="previewArea"></div>
+</section>
+
+<!-- STUDY -->
+<section id="studyTab">
+  <h2>Study</h2>
+  <div class="row">
+    Deck: <select id="studyDeckSelect"></select>
+    <button id="startStudyBtn">Start session</button>
+    <label style="margin-left:12px"><input type="checkbox" id="studyAllChk"> Study all cards (ignore due dates)</label>
+  </div>
+  <div id="studyStats" class="small"></div>
+  <div id="studyArea" class="hidden">
+    <div class="small" id="progressLine"></div>
+    <div id="card"></div>
+    <div class="row"><button id="speakBtn">🔊 Speak</button></div>
+    <div id="answerArea" class="hidden">
+      <div class="ratebtns">
+        <button data-q="1">Again <span class="small" id="ivAgain"></span></button>
+        <button data-q="2">Hard <span class="small" id="ivHard"></span></button>
+        <button data-q="3">Good <span class="small" id="ivGood"></span></button>
+        <button data-q="4">Easy <span class="small" id="ivEasy"></span></button>
+      </div>
+    </div>
+  </div>
+  <div id="doneMsg" class="hidden"><strong>Session complete!</strong></div>
+</section>
+
+<!-- BROWSE -->
+<section id="browseTab">
+  <h2>Browse / Edit cards</h2>
+  <div class="row">
+    Deck: <select id="browseDeckSelect"></select>
+    <button id="exportBtn">Export deck as CSV</button>
+  </div>
+  <div id="browseArea"></div>
+</section>
+
+<!-- SETTINGS -->
+<section id="settingsTab">
+  <h2>Scheduling algorithm</h2>
+  <div class="row">
+    <label><input type="radio" name="algo" value="fsrs" id="algoFsrs"> FSRS (Free Spaced Repetition Scheduler) — modern, difficulty/stability based</label><br>
+    <label><input type="radio" name="algo" value="sm2" id="algoSm2"> SM-2 — legacy ease-factor based (Anki-classic style)</label>
+  </div>
+  <div class="row" id="retentionRow">
+    Target retention (FSRS only): <input type="range" id="retentionSlider" min="0.70" max="0.97" step="0.01">
+    <span id="retentionVal"></span>
+    <div class="small">Higher retention = more frequent reviews but less forgetting. 0.90 is a common default.</div>
+  </div>
+  <div class="small">
+    Applies globally to all decks. Cards keep their own progress; when you switch algorithms a card's
+    next review will be (re)initialized by that algorithm's model on its next rating.
+  </div>
+
+  <h2>Pronunciation (text-to-speech)</h2>
+  <div class="row">
+    <label><input type="checkbox" id="ttsEnabled"> Automatically speak cards aloud while studying</label>
+  </div>
+  <div class="row">
+    Voice language:
+    <select id="ttsLang"></select>
+    <span class="small" id="ttsVoiceCount"></span>
+  </div>
+  <div class="row">
+    Speak: 
+    <select id="ttsSide">
+      <option value="front">Front only</option>
+      <option value="back">Back only</option>
+      <option value="both">Both sides</option>
+    </select>
+  </div>
+  <div class="row">
+    Speed: <input type="range" id="ttsRate" min="0.5" max="1.5" step="0.1">
+    <span id="ttsRateVal"></span>
+  </div>
+  <div class="row">
+    <button id="ttsTestBtn">🔊 Test voice ("Guten Tag, wie geht's?")</button>
+    <span id="ttsUnsupported" class="warn hidden">Your browser doesn't support speech synthesis.</span>
+  </div>
+  <div class="small">
+    Uses your browser/OS's built-in text-to-speech (no data sent anywhere). Voice quality and available
+    languages depend on your device. You can also turn pronunciation on/off per deck from the Decks tab,
+    and click the 🔊 button next to any card to hear it on demand.
+  </div>
+</section>
+
+<!-- APPEARANCE -->
+<section id="appearanceTab">
+  <h2>Colour palette</h2>
+  <div class="row small">Pick a palette below — it applies across the whole site immediately.</div>
+  <div id="paletteGallery" class="palette-gallery"></div>
+
+  <h2>Build your own</h2>
+  <div class="row small">Pick a colour for each role. The note under each one explains where it shows up on the site.</div>
+  <div id="customPaletteBuilder" class="custom-builder"></div>
+  <div class="row">
+    <input type="text" id="customPaletteName" placeholder="Name your palette (optional)">
+    <button id="saveCustomPaletteBtn">Save &amp; apply custom palette</button>
+  </div>
+</section>
+
+<script>
+/* ---------------- Data layer ---------------- */
+const STORAGE_KEY = "flashcards_app_data_v1";
+
+function loadData(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw){
+    try {
+      const d = JSON.parse(raw);
+      if(!d.settings) d.settings = { algorithm: "fsrs", requestRetention: 0.9 };
+      if(!d.settings.tts) d.settings.tts = { enabled: true, lang: "de-DE", side: "both", rate: 0.9 };
+      if(!d.settings.paletteId) d.settings.paletteId = "cappuccino";
+      if(d.customPalette === undefined) d.customPalette = null;
+      return d;
+    } catch(e){ /* fallthrough */ }
+  }
+  return { decks: {}, customPalette: null, settings: { algorithm: "fsrs", requestRetention: 0.9, paletteId: "cappuccino", tts: { enabled: true, lang: "de-DE", side: "both", rate: 0.9 } } };
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); }
+let DATA = loadData();
+
+function uid(prefix){ return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8); }
+
+function createDeck(name){
+  const id = uid("deck");
+  DATA.decks[id] = { id, name, cards: [], pronounce: true };
+  saveData();
+  return id;
+}
+function deleteDeck(id){
+  delete DATA.decks[id];
+  saveData();
+}
+function newCard(front, back){
+  return {
+    id: uid("card"),
+    front, back,
+    // SM-2 state
+    ef: 2.5,
+    interval: 0,        // days
+    // FSRS state
+    difficulty: null,   // D, 1-10, set on first FSRS review
+    stability: null,    // S, days
+    // shared state
+    reps: 0,
+    lapses: 0,
+    due: Date.now(),    // timestamp ms, due immediately (new card)
+    lastReview: null
+  };
+}
+
+/* ---------------- SM-2 algorithm (legacy) ---------------- */
+// grade: 1=Again 2=Hard 3=Good 4=Easy -> mapped to SM-2's 0-5 quality scale
+function sm2(card, grade){
+  const quality = {1:1, 2:3, 3:4, 4:5}[grade];
+  let {ef, interval, reps} = card;
+
+  ef = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+  if(ef < 1.3) ef = 1.3;
+
+  if(quality < 3){
+    reps = 0;
+    interval = 1; // relearn: due again in 1 day if not passed again same session
+    card.lapses = (card.lapses || 0) + 1;
+  } else {
+    if(reps === 0){
+      interval = 1;
+    } else if(reps === 1){
+      interval = 6;
+    } else {
+      interval = Math.round(interval * ef);
+    }
+    reps += 1;
+  }
+
+  card.ef = ef;
+  card.interval = interval;
+  card.reps = reps;
+  card.lastReview = Date.now();
+  card.due = Date.now() + interval * 24 * 60 * 60 * 1000;
+  return card;
+}
+
+/* ---------------- FSRS-5 algorithm ---------------- */
+// Free Spaced Repetition Scheduler. Memory state = Difficulty (D, 1-10) + Stability (S, days).
+// Retrievability R(t,S) is a power-law function of elapsed days t and stability S.
+// Reference: Open Spaced Repetition project (github.com/open-spaced-repetition).
+// grade: 1=Again 2=Hard 3=Good 4=Easy
+
+const FSRS_DECAY = -0.5;
+const FSRS_FACTOR = 19 / 81; // chosen so that R(t=S, S) = 0.9 exactly
+
+// Default FSRS-5 parameter vector w0..w18
+const FSRS_W = [
+  0.40255, 1.18385, 3.173, 15.69105,   // w0-3: initial stability by first grade (1..4)
+  7.1949,                              // w4: baseline initial difficulty
+  0.5345,                              // w5: initial-difficulty grade step
+  1.4604,                              // w6: difficulty delta multiplier
+  0.0046,                              // w7: difficulty mean-reversion weight
+  1.54575,                             // w8: recall stability growth base (exp)
+  0.1192,                              // w9: stability exponent (diminishing returns)
+  1.01925,                             // w10: retrievability gain exponent
+  1.9395,                              // w11: post-lapse initial scale
+  0.11,                                // w12: post-lapse difficulty decay exponent
+  0.29605,                             // w13: post-lapse stability decay power
+  2.2698,                              // w14: post-lapse retrievability boost factor
+  0.2315,                              // w15: "Hard" penalty multiplier
+  2.9898,                              // w16: "Easy" bonus multiplier
+  0.51655, 0.6621                      // w17-18: short-term/same-day multipliers (unused here, no learning steps)
+];
+
+function fsrsClamp(x, lo, hi){ return Math.max(lo, Math.min(hi, x)); }
+
+// Probability of recall after t days, given stability S
+function fsrsRetrievability(elapsedDays, stability){
+  if(!stability || stability <= 0) return 1;
+  return Math.pow(1 + FSRS_FACTOR * elapsedDays / stability, FSRS_DECAY);
+}
+
+// Days needed for retrievability to decay to requestRetention, given stability S
+function fsrsIntervalForRetention(stability, requestRetention){
+  return (stability / FSRS_FACTOR) * (Math.pow(requestRetention, 1 / FSRS_DECAY) - 1);
+}
+
+function fsrsInitStability(grade){
+  return Math.max(FSRS_W[grade - 1], 0.1);
+}
+
+function fsrsInitDifficulty(grade){
+  const d = FSRS_W[4] - Math.exp(FSRS_W[5] * (grade - 1)) + 1;
+  return fsrsClamp(d, 1, 10);
+}
+
+function fsrsNextDifficulty(D, grade){
+  const deltaD = -FSRS_W[6] * (grade - 3);
+  const damped = D + deltaD * (10 - D) / 9;
+  const baseline = fsrsInitDifficulty(4); // D0(Easy), used as mean-reversion target
+  const reverted = FSRS_W[7] * baseline + (1 - FSRS_W[7]) * damped;
+  return fsrsClamp(reverted, 1, 10);
+}
+
+function fsrsNextRecallStability(D, S, R, grade){
+  const hardPenalty = grade === 2 ? FSRS_W[15] : 1;
+  const easyBonus = grade === 4 ? FSRS_W[16] : 1;
+  const growth = Math.exp(FSRS_W[8]) *
+                 (11 - D) *
+                 Math.pow(S, -FSRS_W[9]) *
+                 (Math.exp((1 - R) * FSRS_W[10]) - 1) *
+                 hardPenalty * easyBonus;
+  return S * (growth + 1);
+}
+
+function fsrsNextForgetStability(D, S, R){
+  return FSRS_W[11] *
+         Math.pow(D, -FSRS_W[12]) *
+         (Math.pow(S + 1, FSRS_W[13]) - 1) *
+         Math.exp((1 - R) * FSRS_W[14]);
+}
+
+function fsrs(card, grade){
+  const now = Date.now();
+  const requestRetention = DATA.settings.requestRetention || 0.9;
+
+  let D, S;
+  if(!card.stability || card.reps === 0){
+    // first-ever review under FSRS: initialize straight from the grade
+    S = fsrsInitStability(grade);
+    D = fsrsInitDifficulty(grade);
+  } else {
+    const elapsedDays = card.lastReview ? Math.max(0, (now - card.lastReview) / 86400000) : 0;
+    const R = fsrsRetrievability(elapsedDays, card.stability);
+    D = fsrsNextDifficulty(card.difficulty, grade);
+    S = grade === 1
+      ? fsrsNextForgetStability(card.difficulty, card.stability, R)
+      : fsrsNextRecallStability(card.difficulty, card.stability, R, grade);
+  }
+
+  if(grade === 1) card.lapses = (card.lapses || 0) + 1;
+
+  card.difficulty = D;
+  card.stability = S;
+  card.reps = (card.reps || 0) + 1;
+  card.interval = Math.max(fsrsIntervalForRetention(S, requestRetention), 1 / 1440); // min 1 minute
+  card.lastReview = now;
+  card.due = now + card.interval * 24 * 60 * 60 * 1000;
+  return card;
+}
+
+/* ---------------- Dispatcher ---------------- */
+function scheduleCard(card, grade){
+  return DATA.settings.algorithm === "sm2" ? sm2(card, grade) : fsrs(card, grade);
+}
+
+function previewInterval(card, grade){
+  // clone to avoid mutating the real card
+  const copy = JSON.parse(JSON.stringify(card));
+  scheduleCard(copy, grade);
+  const days = copy.interval;
+  if(grade === 1) {
+    return days < 1 ? "<1d (relearn)" : "~" + Math.round(days) + "d (relearn)";
+  }
+  if(days < 1) return Math.round(days * 24 * 60) + " min";
+  if(days < 1.5) return "1 day";
+  if(days < 30) return Math.round(days) + " days";
+  if(days < 365) return Math.round(days / 30 * 10) / 10 + " mo";
+  return Math.round(days / 365 * 10) / 10 + " yr";
+}
+
+/* ---------------- Parsing import text ---------------- */
+function resolveSep(selectVal, customVal){
+  if(selectVal === "custom") return customVal;
+  return selectVal.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+}
+
+// Simple CSV-aware line splitter: handles quoted fields if sep is comma/semicolon and quotes are used
+function splitFaces(cardText, sep){
+  // if the card text contains a quote and sep is a simple char, try CSV-style parse
+  if(sep.length === 1 && cardText.includes('"')){
+    const fields = [];
+    let cur = "";
+    let inQuotes = false;
+    for(let i=0;i<cardText.length;i++){
+      const ch = cardText[i];
+      if(inQuotes){
+        if(ch === '"'){
+          if(cardText[i+1] === '"'){ cur += '"'; i++; }
+          else inQuotes = false;
+        } else cur += ch;
+      } else {
+        if(ch === '"') inQuotes = true;
+        else if(ch === sep){ fields.push(cur); cur = ""; }
+        else cur += ch;
+      }
+    }
+    fields.push(cur);
+    return fields.map(f => f.trim());
+  }
+  return cardText.split(sep).map(f => f.trim());
+}
+
+function parseImport(text, cardSep, faceSep, skipHeader){
+  let cardChunks = text.split(cardSep).map(c => c.trim()).filter(c => c.length > 0);
+  if(skipHeader && cardChunks.length > 0) cardChunks = cardChunks.slice(1);
+  const parsed = [];
+  const errors = [];
+  cardChunks.forEach((chunk, idx) => {
+    const faces = splitFaces(chunk, faceSep);
+    if(faces.length < 2 || !faces[0] || !faces[1]){
+      errors.push("Line " + (idx+1) + ": could not split into front/back -> " + JSON.stringify(chunk));
+      return;
+    }
+    parsed.push({ front: faces[0], back: faces.slice(1).join(" ") });
+  });
+  return { parsed, errors };
+}
+
+/* ---------------- Text-to-speech ---------------- */
+const ttsSupported = "speechSynthesis" in window;
+let ttsVoices = [];
+
+function loadTtsVoices(){
+  if(!ttsSupported) return;
+  ttsVoices = window.speechSynthesis.getVoices();
+  populateTtsLangSelect();
+}
+if(ttsSupported){
+  loadTtsVoices();
+  window.speechSynthesis.onvoiceschanged = loadTtsVoices;
+}
+
+function populateTtsLangSelect(){
+  const sel = document.getElementById("ttsLang");
+  if(!sel) return;
+  const prevVal = sel.value || DATA.settings.tts.lang;
+
+  // Preferred languages up top (German first, since that's the primary use case), then any other detected voice languages.
+  const preferred = [
+    ["de-DE","German (Germany)"], ["de-AT","German (Austria)"], ["de-CH","German (Switzerland)"],
+    ["en-US","English (US)"], ["en-GB","English (UK)"],
+    ["fr-FR","French"], ["es-ES","Spanish"], ["it-IT","Italian"], ["pt-PT","Portuguese"],
+    ["nl-NL","Dutch"], ["ja-JP","Japanese"], ["zh-CN","Chinese (Mandarin)"], ["ru-RU","Russian"]
+  ];
+  const availableLangs = new Set(ttsVoices.map(v => v.lang));
+  const seen = new Set();
+  let opts = "";
+  preferred.forEach(([code,label]) => {
+    if(seen.has(code)) return;
+    const hasVoice = availableLangs.has(code) || ttsVoices.length === 0; // if voice list not loaded yet, show anyway
+    opts += `<option value="${code}"${hasVoice ? "" : " disabled"}>${label}${hasVoice ? "" : " (no voice found)"}</option>`;
+    seen.add(code);
+  });
+  // add any other available languages we didn't already list
+  ttsVoices.forEach(v => {
+    if(!seen.has(v.lang)){
+      opts += `<option value="${v.lang}">${v.lang} — ${v.name}</option>`;
+      seen.add(v.lang);
+    }
+  });
+  sel.innerHTML = opts;
+  sel.value = prevVal;
+  if(sel.value !== prevVal) sel.value = "de-DE"; // fallback if previous choice no longer valid
+
+  const count = ttsVoices.filter(v => v.lang === sel.value).length;
+  const countEl = document.getElementById("ttsVoiceCount");
+  if(countEl) countEl.textContent = ttsVoices.length ? `(${count} voice${count===1?"":"s"} found)` : "";
+
+  const unsupportedEl = document.getElementById("ttsUnsupported");
+  if(unsupportedEl) unsupportedEl.classList.toggle("hidden", ttsSupported);
+}
+
+function speak(text, langOverride, rateOverride){
+  if(!ttsSupported || !text) return;
+  const lang = langOverride || DATA.settings.tts.lang;
+  window.speechSynthesis.cancel(); // stop anything currently speaking
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = lang;
+  utter.rate = rateOverride != null ? rateOverride : (DATA.settings.tts.rate || 0.9);
+  const voice = ttsVoices.find(v => v.lang === lang);
+  if(voice) utter.voice = voice;
+  window.speechSynthesis.speak(utter);
+}
+
+// Each additional click on the same speak target slows the voice down a bit further (min 0.4x),
+// so you can "ask again, slower" just by clicking again. Resets once the key changes (new card/face).
+const speakClickCounts = {};
+function speakProgressive(text, key){
+  const count = speakClickCounts[key] || 0;
+  const baseRate = DATA.settings.tts.rate || 0.9;
+  const rate = Math.max(0.4, baseRate - count * 0.15);
+  speak(text, null, rate);
+  speakClickCounts[key] = count + 1;
+}
+
+// Auto-speak a card face if enabled globally and for the current deck
+function autoSpeak(face, deckId){
+  if(!DATA.settings.tts.enabled) return;
+  const deck = DATA.decks[deckId];
+  if(deck && deck.pronounce === false) return;
+  const side = DATA.settings.tts.side;
+  if(side !== "both" && side !== face) return;
+  const card = session.current;
+  if(!card) return;
+  speak(face === "front" ? card.front : card.back);
+}
+
+/* ---------------- Colour palettes ---------------- */
+// Each palette maps 4 roles used consistently across the whole site:
+//   bg        = page background
+//   surface   = card / panel / section backgrounds
+//   secondary = borders, secondary buttons, hover states
+//   primary   = headings, primary buttons/active states, key accents
+// Text colors are computed automatically for contrast, so any custom combination stays readable.
+const ROLE_META = [
+  { key: "bg",        label: "Background", note: "Page background behind everything." },
+  { key: "surface",   label: "Surface",    note: "Cards, panels, and section backgrounds." },
+  { key: "secondary", label: "Secondary",  note: "Borders, secondary buttons, hover states." },
+  { key: "primary",   label: "Primary",    note: "Headings, primary buttons, active tab." }
+];
+
+const BUILTIN_PALETTES = {
+  cappuccino: {
+    id: "cappuccino",
+    name: "Cappuccino",
+    description: "This palette's combination of warm and cool tones creates an inviting and calming atmosphere. #D6B588 provides a clean, soothing foundation, while #705E46 and #422701 introduce depth, stability, and a sense of professionalism. #C6C0B9 serves as a soft neutral that balances the warmer shades. Together, these colors promote focus, readability, and relaxation, making the palette particularly well suited for productivity, reading, and language-learning applications such as a German flashcards website.",
+    colors: { bg: "#C6C0B9", surface: "#D6B588", secondary: "#705E46", primary: "#422701" }
+  },
+  moonlight: {
+    id: "moonlight",
+    name: "Under the Moonlight",
+    description: "This palette transitions from #CCCCFF to #292966, creating a calm and contemplative atmosphere. #CCCCFF introduces a soft, airy feel, while #A3A3CC and #5C5C99 add balance and depth. #292966 grounds the palette with a rich, midnight tone that conveys focus and stability. Together, these colors evoke tranquility, curiosity, and quiet concentration, making the palette well suited for educational platforms, reading interfaces, language-learning applications, and content related to exploration, science, or astronomy.",
+    colors: { bg: "#CCCCFF", surface: "#A3A3CC", secondary: "#5C5C99", primary: "#292966" }
+  }
+};
+
+function hexToRgb(hex){
+  const h = hex.replace("#","");
+  const full = h.length === 3 ? h.split("").map(c=>c+c).join("") : h;
+  const num = parseInt(full, 16);
+  return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 };
+}
+function rgbToHex(r,g,b){
+  const c = v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0");
+  return "#" + c(r) + c(g) + c(b);
+}
+function relLuminance(hex){
+  const {r,g,b} = hexToRgb(hex);
+  const srgb = [r,g,b].map(v => { v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); });
+  return 0.2126*srgb[0] + 0.7152*srgb[1] + 0.0722*srgb[2];
+}
+function contrastText(hex){ return relLuminance(hex) > 0.45 ? "#201812" : "#f6f1e8"; }
+function shade(hex, percent){ // negative = darker, positive = lighter
+  const {r,g,b} = hexToRgb(hex);
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.abs(percent) / 100;
+  return rgbToHex(r+(t-r)*p, g+(t-g)*p, b+(t-b)*p);
+}
+
+function getActivePaletteColors(){
+  if(DATA.settings.paletteId === "custom" && DATA.customPalette) return DATA.customPalette.colors;
+  return (BUILTIN_PALETTES[DATA.settings.paletteId] || BUILTIN_PALETTES.cappuccino).colors;
+}
+
+function applyPalette(colors){
+  const root = document.documentElement.style;
+  root.setProperty("--color-bg", colors.bg);
+  root.setProperty("--color-surface", colors.surface);
+  root.setProperty("--color-secondary", colors.secondary);
+  root.setProperty("--color-primary", colors.primary);
+  root.setProperty("--color-text", contrastText(colors.surface));
+  root.setProperty("--color-text-muted", shade(contrastText(colors.surface), contrastText(colors.surface) === "#201812" ? 35 : -25));
+  root.setProperty("--color-text-on-primary", contrastText(colors.primary));
+  root.setProperty("--color-text-on-secondary", contrastText(colors.secondary));
+  root.setProperty("--color-border", colors.secondary);
+  root.setProperty("--color-primary-hover", shade(colors.primary, -14));
+  root.setProperty("--color-secondary-hover", shade(colors.secondary, -14));
+  root.setProperty("--color-surface-hover", shade(colors.surface, -10));
+}
+
+function renderAppearanceTab(){
+  const gallery = document.getElementById("paletteGallery");
+  if(!gallery) return;
+  gallery.innerHTML = "";
+  const allPalettes = Object.values(BUILTIN_PALETTES).slice();
+  if(DATA.customPalette){
+    allPalettes.push({ id:"custom", name: DATA.customPalette.name || "My custom palette", description: "Your saved custom palette.", colors: DATA.customPalette.colors });
+  }
+  allPalettes.forEach(p => {
+    const card = document.createElement("div");
+    card.className = "palette-card" + (DATA.settings.paletteId === p.id ? " selected" : "");
+    card.innerHTML = `
+      <div class="palette-swatches">${ROLE_META.map(r => `<div style="background:${p.colors[r.key]}" title="${r.label}: ${p.colors[r.key]}"></div>`).join("")}</div>
+      <h3>${escapeHtml(p.name)}</h3>
+      <div class="small">${escapeHtml(p.description || "")}</div>
+      <ul class="palette-role-list">${ROLE_META.map(r => `<li><span><span class="swatch-dot" style="background:${p.colors[r.key]}"></span>${r.label}</span><span>${p.colors[r.key].toUpperCase()}</span></li>`).join("")}</ul>
+    `;
+    card.onclick = () => {
+      DATA.settings.paletteId = p.id;
+      saveData();
+      applyPalette(p.colors);
+      renderAppearanceTab();
+    };
+    gallery.appendChild(card);
+  });
+
+  // Custom builder — seed from the saved custom palette, or the currently active one
+  const builder = document.getElementById("customPaletteBuilder");
+  const base = (DATA.customPalette && DATA.customPalette.colors) || getActivePaletteColors();
+  builder.innerHTML = "";
+  ROLE_META.forEach(r => {
+    const wrap = document.createElement("div");
+    wrap.className = "custom-role";
+    wrap.innerHTML = `
+      <label>${r.label}</label>
+      <div class="note">${r.note}</div>
+      <div class="custom-role-row">
+        <input type="color" id="customColor_${r.key}" value="${base[r.key]}">
+        <span class="small" id="customColorHex_${r.key}">${base[r.key].toUpperCase()}</span>
+      </div>`;
+    builder.appendChild(wrap);
+  });
+  ROLE_META.forEach(r => {
+    document.getElementById("customColor_" + r.key).addEventListener("input", (e) => {
+      document.getElementById("customColorHex_" + r.key).textContent = e.target.value.toUpperCase();
+    });
+  });
+  document.getElementById("customPaletteName").value = (DATA.customPalette && DATA.customPalette.name) || "";
+}
+
+document.getElementById("saveCustomPaletteBtn").addEventListener("click", () => {
+  const colors = {};
+  ROLE_META.forEach(r => { colors[r.key] = document.getElementById("customColor_" + r.key).value; });
+  const name = document.getElementById("customPaletteName").value.trim() || "My custom palette";
+  DATA.customPalette = { name, colors };
+  DATA.settings.paletteId = "custom";
+  saveData();
+  applyPalette(colors);
+  renderAppearanceTab();
+});
+
+/* ---------------- UI: tabs ---------------- */
+document.querySelectorAll("nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("section").forEach(s => s.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(btn.dataset.tab).classList.add("active");
+    refreshAll();
+  });
+});
+
+/* ---------------- Decks tab ---------------- */
+function renderDeckList(){
+  const el = document.getElementById("deckList");
+  const decks = Object.values(DATA.decks);
+  if(decks.length === 0){ el.innerHTML = "<p class='small'>No decks yet. Create one above, or import cards to auto-create one.</p>"; return; }
+  el.innerHTML = "";
+  decks.forEach(deck => {
+    const dueCount = deck.cards.filter(c => c.due <= Date.now()).length;
+    const div = document.createElement("div");
+    div.className = "deckItem";
+    div.innerHTML = `<span><strong>${escapeHtml(deck.name)}</strong> — ${deck.cards.length} cards, ${dueCount} due</span>`;
+    const btnWrap = document.createElement("span");
+    const pronounceLabel = document.createElement("label");
+    pronounceLabel.style.marginRight = "6px";
+    pronounceLabel.className = "small";
+    const pronounceChk = document.createElement("input");
+    pronounceChk.type = "checkbox";
+    pronounceChk.checked = deck.pronounce !== false; // default on
+    pronounceChk.onchange = () => { deck.pronounce = pronounceChk.checked; saveData(); };
+    pronounceLabel.appendChild(pronounceChk);
+    pronounceLabel.appendChild(document.createTextNode(" 🔊 auto-speak"));
+    const renameBtn = document.createElement("button");
+    renameBtn.textContent = "Rename";
+    renameBtn.onclick = () => {
+      const newName = prompt("New deck name:", deck.name);
+      if(newName){ deck.name = newName; saveData(); refreshAll(); }
+    };
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "Delete";
+    delBtn.onclick = () => {
+      if(confirm("Delete deck \"" + deck.name + "\" and all its cards?")){
+        deleteDeck(deck.id);
+        refreshAll();
+      }
+    };
+    btnWrap.appendChild(pronounceLabel);
+    btnWrap.appendChild(renameBtn);
+    btnWrap.appendChild(delBtn);
+    div.appendChild(btnWrap);
+    el.appendChild(div);
+  });
+}
+document.getElementById("createDeckBtn").onclick = () => {
+  const name = document.getElementById("newDeckName").value.trim();
+  if(!name){ alert("Enter a deck name"); return; }
+  createDeck(name);
+  document.getElementById("newDeckName").value = "";
+  refreshAll();
+};
+
+/* ---------------- Import tab ---------------- */
+document.getElementById("cardSepSelect").onchange = e => {
+  document.getElementById("cardSepCustom").classList.toggle("hidden", e.target.value !== "custom");
+};
+document.getElementById("faceSepSelect").onchange = e => {
+  document.getElementById("faceSepCustom").classList.toggle("hidden", e.target.value !== "custom");
+};
+document.getElementById("fileInput").onchange = e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => { document.getElementById("importText").value = ev.target.result; };
+  reader.readAsText(f);
+};
+
+function populateDeckSelect(selectEl, includeNoneOption){
+  selectEl.innerHTML = "";
+  if(includeNoneOption){
+    const opt = document.createElement("option");
+    opt.value = ""; opt.textContent = "-- select deck --";
+    selectEl.appendChild(opt);
+  }
+  Object.values(DATA.decks).forEach(deck => {
+    const opt = document.createElement("option");
+    opt.value = deck.id; opt.textContent = deck.name;
+    selectEl.appendChild(opt);
+  });
+}
+
+let lastParsed = [];
+document.getElementById("previewBtn").onclick = () => {
+  const text = document.getElementById("importText").value;
+  if(!text.trim()){ document.getElementById("importMsg").textContent = "Nothing to import - paste text or upload a file."; return; }
+  const cardSep = resolveSep(document.getElementById("cardSepSelect").value, document.getElementById("cardSepCustom").value);
+  const faceSep = resolveSep(document.getElementById("faceSepSelect").value, document.getElementById("faceSepCustom").value);
+  const skipHeader = document.getElementById("skipHeader").checked;
+  if(!cardSep || !faceSep){ document.getElementById("importMsg").textContent = "Please specify custom separators."; return; }
+
+  const { parsed, errors } = parseImport(text, cardSep, faceSep, skipHeader);
+  lastParsed = parsed;
+
+  const previewArea = document.getElementById("previewArea");
+  let html = `<p>Parsed <strong>${parsed.length}</strong> cards.` + (errors.length ? ` <span class="warn">${errors.length} lines had errors.</span>` : "") + `</p>`;
+  if(parsed.length){
+    html += "<table><tr><th>#</th><th>Front</th><th>Back</th></tr>";
+    parsed.slice(0,50).forEach((p,i) => {
+      html += `<tr><td>${i+1}</td><td>${escapeHtml(p.front)}</td><td>${escapeHtml(p.back)}</td></tr>`;
+    });
+    html += "</table>";
+    if(parsed.length > 50) html += `<p class="small">...and ${parsed.length-50} more</p>`;
+  }
+  if(errors.length){
+    html += "<details><summary class='warn'>Show errors</summary><ul>" + errors.map(e=>`<li>${escapeHtml(e)}</li>`).join("") + "</ul></details>";
+  }
+  previewArea.innerHTML = html;
+  document.getElementById("importMsg").textContent = "";
+  document.getElementById("confirmImportBtn").disabled = parsed.length === 0;
+};
+
+document.getElementById("confirmImportBtn").onclick = () => {
+  if(lastParsed.length === 0) return;
+  let deckId = document.getElementById("importDeckSelect").value;
+  const newName = document.getElementById("importNewDeckName").value.trim();
+  if(newName){
+    deckId = createDeck(newName);
+  }
+  if(!deckId){ alert("Select a target deck or enter a new deck name."); return; }
+  const deck = DATA.decks[deckId];
+  lastParsed.forEach(p => deck.cards.push(newCard(p.front, p.back)));
+  saveData();
+  document.getElementById("importMsg").textContent = "Imported " + lastParsed.length + " cards into \"" + deck.name + "\".";
+  document.getElementById("confirmImportBtn").disabled = true;
+  lastParsed = [];
+  document.getElementById("previewArea").innerHTML = "";
+  document.getElementById("importText").value = "";
+  document.getElementById("importNewDeckName").value = "";
+  refreshAll();
+};
+
+/* ---------------- Study tab ---------------- */
+let session = { deckId: null, queue: [], current: null, studied: 0, total: 0 };
+
+function populateStudyStats(){
+  const deckId = document.getElementById("studyDeckSelect").value;
+  const statsEl = document.getElementById("studyStats");
+  if(!deckId){ statsEl.textContent = ""; return; }
+  const deck = DATA.decks[deckId];
+  const due = deck.cards.filter(c => c.due <= Date.now()).length;
+  statsEl.textContent = deck.cards.length + " total cards, " + due + " due now.";
+}
+document.getElementById("studyDeckSelect").onchange = populateStudyStats;
+
+document.getElementById("startStudyBtn").onclick = () => {
+  const deckId = document.getElementById("studyDeckSelect").value;
+  if(!deckId){ alert("Select a deck"); return; }
+  const deck = DATA.decks[deckId];
+  const all = document.getElementById("studyAllChk").checked;
+  let cards = all ? deck.cards.slice() : deck.cards.filter(c => c.due <= Date.now());
+  if(cards.length === 0){ alert("No cards to study" + (all ? "" : " (nothing due — try 'study all')")); return; }
+  // shuffle
+  cards = cards.map(c => ({sort: Math.random(), c})).sort((a,b)=>a.sort-b.sort).map(x=>x.c);
+  session = { deckId, queue: cards, current: null, studied: 0, total: cards.length };
+  document.getElementById("studyArea").classList.remove("hidden");
+  document.getElementById("doneMsg").classList.add("hidden");
+  nextCard();
+};
+
+function nextCard(){
+  if(session.queue.length === 0){
+    document.getElementById("studyArea").classList.add("hidden");
+    document.getElementById("doneMsg").classList.remove("hidden");
+    refreshAll();
+    return;
+  }
+  session.current = session.queue.shift();
+  document.getElementById("answerArea").classList.add("hidden");
+  const cardEl = document.getElementById("card");
+  document.getElementById("progressLine").textContent = "Remaining: " + (session.queue.length + 1) + " / studied so far: " + session.studied;
+  cardEl.classList.add("card-flip-out");
+  setTimeout(() => {
+    cardEl.textContent = session.current.front;
+    cardEl.dataset.flipped = "0";
+    cardEl.classList.remove("card-flip-out");
+    autoSpeak("front", session.deckId);
+  }, 140);
+}
+
+document.getElementById("card").onclick = () => {
+  const cardEl = document.getElementById("card");
+  if(!session.current) return;
+  if(cardEl.dataset.flipped === "0"){
+    cardEl.classList.add("card-flip-out");
+    setTimeout(() => {
+      cardEl.textContent = session.current.back;
+      cardEl.dataset.flipped = "1";
+      cardEl.classList.remove("card-flip-out");
+      document.getElementById("answerArea").classList.remove("hidden");
+      // set interval previews
+      document.getElementById("ivAgain").textContent = "(" + previewInterval(session.current,1) + ")";
+      document.getElementById("ivHard").textContent = "(" + previewInterval(session.current,2) + ")";
+      document.getElementById("ivGood").textContent = "(" + previewInterval(session.current,3) + ")";
+      document.getElementById("ivEasy").textContent = "(" + previewInterval(session.current,4) + ")";
+      autoSpeak("back", session.deckId);
+    }, 140);
+  }
+};
+
+document.getElementById("speakBtn").onclick = (e) => {
+  e.stopPropagation();
+  if(!session.current) return;
+  const cardEl = document.getElementById("card");
+  const flipped = cardEl.dataset.flipped === "1";
+  const face = flipped ? session.current.back : session.current.front;
+  const key = "study_" + session.current.id + "_" + (flipped ? "back" : "front");
+  speakProgressive(face, key);
+};
+
+document.querySelectorAll(".ratebtns button").forEach(btn => {
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const grade = parseInt(btn.dataset.q, 10); // 1=Again 2=Hard 3=Good 4=Easy
+    const card = session.current;
+    scheduleCard(card, grade);
+    saveData();
+    session.studied++;
+    if(grade === 1){
+      // requeue for relearning later in this session
+      const insertAt = Math.min(session.queue.length, 3);
+      session.queue.splice(insertAt, 0, card);
+    }
+    nextCard();
+  };
+});
+
+/* ---------------- Browse tab ---------------- */
+function renderBrowse(){
+  const deckId = document.getElementById("browseDeckSelect").value;
+  const el = document.getElementById("browseArea");
+  if(!deckId){ el.innerHTML = ""; return; }
+  const deck = DATA.decks[deckId];
+  if(deck.cards.length === 0){ el.innerHTML = "<p class='small'>No cards in this deck.</p>"; return; }
+  const isFsrs = DATA.settings.algorithm !== "sm2";
+  const statCol = isFsrs ? "<th>Difficulty</th><th>Stability</th>" : "<th>EF</th>";
+  let html = "<table><tr><th>Front</th><th>Back</th><th>Due</th><th>Reps</th>" + statCol + "<th></th><th></th></tr>";
+  deck.cards.forEach(c => {
+    const dueStr = new Date(c.due).toLocaleDateString();
+    const statVals = isFsrs
+      ? `<td>${c.difficulty!=null ? c.difficulty.toFixed(2) : "-"}</td><td>${c.stability!=null ? c.stability.toFixed(2)+"d" : "-"}</td>`
+      : `<td>${c.ef.toFixed(2)}</td>`;
+    html += `<tr data-id="${c.id}">
+      <td contenteditable="true" class="editFront">${escapeHtml(c.front)}</td>
+      <td contenteditable="true" class="editBack">${escapeHtml(c.back)}</td>
+      <td>${dueStr}</td><td>${c.reps}</td>${statVals}
+      <td><button class="speakRowBtn" title="Speak front">🔊</button></td>
+      <td><button class="delCardBtn">Delete</button></td>
+    </tr>`;
+  });
+  html += "</table>";
+  el.innerHTML = html;
+
+  el.querySelectorAll(".speakRowBtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tr = btn.closest("tr");
+      const id = tr.dataset.id;
+      const card = deck.cards.find(c => c.id === id);
+      if(card) speakProgressive(card.front, "browse_" + id);
+    });
+  });
+
+  el.querySelectorAll(".editFront, .editBack").forEach(td => {
+    td.addEventListener("blur", () => {
+      const tr = td.closest("tr");
+      const id = tr.dataset.id;
+      const card = deck.cards.find(c => c.id === id);
+      if(!card) return;
+      card.front = tr.querySelector(".editFront").textContent.trim();
+      card.back = tr.querySelector(".editBack").textContent.trim();
+      saveData();
+    });
+  });
+  el.querySelectorAll(".delCardBtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tr = btn.closest("tr");
+      const id = tr.dataset.id;
+      deck.cards = deck.cards.filter(c => c.id !== id);
+      saveData();
+      renderBrowse();
+      renderDeckList();
+    });
+  });
+}
+document.getElementById("browseDeckSelect").onchange = renderBrowse;
+
+document.getElementById("exportBtn").onclick = () => {
+  const deckId = document.getElementById("browseDeckSelect").value;
+  if(!deckId){ alert("Select a deck"); return; }
+  const deck = DATA.decks[deckId];
+  const csvEscape = s => '"' + String(s).replace(/"/g,'""') + '"';
+  const lines = deck.cards.map(c => csvEscape(c.front) + "," + csvEscape(c.back));
+  const blob = new Blob([lines.join("\n")], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = deck.name.replace(/[^a-z0-9]/gi,"_") + ".csv";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/* ---------------- Settings tab ---------------- */
+function initSettingsUI(){
+  document.getElementById("algoFsrs").checked = DATA.settings.algorithm !== "sm2";
+  document.getElementById("algoSm2").checked = DATA.settings.algorithm === "sm2";
+  document.getElementById("retentionSlider").value = DATA.settings.requestRetention;
+  document.getElementById("retentionVal").textContent = Math.round(DATA.settings.requestRetention * 100) + "%";
+  document.getElementById("retentionRow").style.opacity = DATA.settings.algorithm === "sm2" ? "0.4" : "1";
+
+  document.getElementById("ttsEnabled").checked = DATA.settings.tts.enabled;
+  populateTtsLangSelect();
+  document.getElementById("ttsSide").value = DATA.settings.tts.side;
+  document.getElementById("ttsRate").value = DATA.settings.tts.rate;
+  document.getElementById("ttsRateVal").textContent = DATA.settings.tts.rate + "x";
+  document.getElementById("ttsUnsupported").classList.toggle("hidden", ttsSupported);
+}
+document.getElementById("algoFsrs").addEventListener("change", () => {
+  DATA.settings.algorithm = "fsrs";
+  saveData();
+  initSettingsUI();
+  renderBrowse();
+});
+document.getElementById("algoSm2").addEventListener("change", () => {
+  DATA.settings.algorithm = "sm2";
+  saveData();
+  initSettingsUI();
+  renderBrowse();
+});
+document.getElementById("retentionSlider").addEventListener("input", (e) => {
+  DATA.settings.requestRetention = parseFloat(e.target.value);
+  document.getElementById("retentionVal").textContent = Math.round(DATA.settings.requestRetention * 100) + "%";
+  saveData();
+});
+document.getElementById("ttsEnabled").addEventListener("change", (e) => {
+  DATA.settings.tts.enabled = e.target.checked;
+  saveData();
+});
+document.getElementById("ttsLang").addEventListener("change", (e) => {
+  DATA.settings.tts.lang = e.target.value;
+  saveData();
+});
+document.getElementById("ttsSide").addEventListener("change", (e) => {
+  DATA.settings.tts.side = e.target.value;
+  saveData();
+});
+document.getElementById("ttsRate").addEventListener("input", (e) => {
+  DATA.settings.tts.rate = parseFloat(e.target.value);
+  document.getElementById("ttsRateVal").textContent = DATA.settings.tts.rate + "x";
+  saveData();
+});
+document.getElementById("ttsTestBtn").addEventListener("click", () => {
+  speak("Guten Tag, wie geht's?", document.getElementById("ttsLang").value);
+});
+
+/* ---------------- Helpers ---------------- */
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+function refreshAll(){
+  applyPalette(getActivePaletteColors());
+  renderDeckList();
+  populateDeckSelect(document.getElementById("importDeckSelect"), true);
+  populateDeckSelect(document.getElementById("studyDeckSelect"), true);
+  populateDeckSelect(document.getElementById("browseDeckSelect"), true);
+  populateStudyStats();
+  renderBrowse();
+  initSettingsUI();
+  renderAppearanceTab();
+}
+refreshAll();
+</script>
+</body>
+</html>
 
