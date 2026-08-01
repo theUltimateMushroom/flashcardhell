@@ -69,6 +69,7 @@
     background:var(--color-bg);color:var(--color-text);font-size:13px;
     transition:background-color .3s ease,border-color .3s ease,color .3s ease;
   }
+  ::placeholder{ color:var(--color-text-muted); opacity:1; }
   input[type=range]{accent-color:var(--color-primary);}
   input[type=color]{border:1px solid var(--color-border);border-radius:6px;width:44px;height:32px;cursor:pointer;padding:2px;background:var(--color-bg);}
 
@@ -99,6 +100,8 @@
   }
   #card:hover{transform:translateY(-2px);}
   #card.card-flip-out{transform:scaleX(.05);}
+  #cardBack{margin-top:16px;padding-top:16px;border-top:1px solid var(--color-border);}
+  #cardBack:not(.hidden){animation:pulseIn .25s ease both;}
 
   .ratebtns button{padding:10px 16px;margin-right:8px;font-size:14px;}
 
@@ -262,8 +265,18 @@ front,back"></textarea>
   <div id="studyStats" class="small"></div>
   <div id="studyArea" class="hidden">
     <div class="small" id="progressLine"></div>
-    <div id="card"></div>
-    <div class="row"><button id="speakBtn">🔊 Speak</button></div>
+    <div id="card">
+      <div id="cardFront"></div>
+      <div id="cardBack" class="hidden"></div>
+    </div>
+    <div class="row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button id="speakBtn">🔊 Speak</button>
+      <button id="typeToggleBtn" title="Type your answer before flipping, to test yourself">⌨️ Test yourself</button>
+    </div>
+    <div id="typeAnswerWrap" class="row hidden">
+      <input type="text" id="typeAnswerInput" placeholder="Type your answer, then flip the card to check">
+      <div id="typeAnswerFeedback" class="small hidden"></div>
+    </div>
     <div id="answerArea" class="hidden">
       <div class="ratebtns">
         <button data-q="1">Again <span class="small" id="ivAgain"></span></button>
@@ -739,12 +752,23 @@ function relLuminance(hex){
   const srgb = [r,g,b].map(v => { v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); });
   return 0.2126*srgb[0] + 0.7152*srgb[1] + 0.0722*srgb[2];
 }
-function contrastText(hex){ return relLuminance(hex) > 0.45 ? "#201812" : "#f6f1e8"; }
 function shade(hex, percent){ // negative = darker, positive = lighter
   const {r,g,b} = hexToRgb(hex);
   const t = percent < 0 ? 0 : 255;
   const p = Math.abs(percent) / 100;
   return rgbToHex(r+(t-r)*p, g+(t-g)*p, b+(t-b)*p);
+}
+function contrastRatio(hex1, hex2){
+  const l1 = relLuminance(hex1) + 0.05, l2 = relLuminance(hex2) + 0.05;
+  return l1 > l2 ? l1 / l2 : l2 / l1;
+}
+// Derives a readable text color FROM an existing palette color (never a generic gray/black/white):
+// it darkens or lightens sourceHex — whichever direction reads better against onBgHex.
+// This keeps every derived tone visibly related to the chosen palette's hue.
+function tintText(sourceHex, onBgHex, strength){
+  const dark = shade(sourceHex, -strength);
+  const light = shade(sourceHex, strength);
+  return contrastRatio(dark, onBgHex) >= contrastRatio(light, onBgHex) ? dark : light;
 }
 
 function getActivePaletteColors(){
@@ -758,10 +782,16 @@ function applyPalette(colors){
   root.setProperty("--color-surface", colors.surface);
   root.setProperty("--color-secondary", colors.secondary);
   root.setProperty("--color-primary", colors.primary);
-  root.setProperty("--color-text", contrastText(colors.surface));
-  root.setProperty("--color-text-muted", shade(contrastText(colors.surface), contrastText(colors.surface) === "#201812" ? 35 : -25));
-  root.setProperty("--color-text-on-primary", contrastText(colors.primary));
-  root.setProperty("--color-text-on-secondary", contrastText(colors.secondary));
+
+  // Main text: a darkened/lightened variant of PRIMARY (keeps the palette's hue instead of flat black)
+  root.setProperty("--color-text", tintText(colors.primary, colors.surface, 55));
+  // Muted text: a softer variant of SECONDARY, tinted toward readability — not a generic gray
+  root.setProperty("--color-text-muted", tintText(colors.secondary, colors.surface, 25));
+  // Text sitting on primary/secondary-colored buttons: derived from BG's hue, pushed toward whichever
+  // end (lighter/darker) gives real contrast against that button color
+  root.setProperty("--color-text-on-primary", tintText(colors.bg, colors.primary, 55));
+  root.setProperty("--color-text-on-secondary", tintText(colors.bg, colors.secondary, 55));
+
   root.setProperty("--color-border", colors.secondary);
   root.setProperty("--color-primary-hover", shade(colors.primary, -14));
   root.setProperty("--color-secondary-hover", shade(colors.secondary, -14));
@@ -1010,9 +1040,15 @@ function nextCard(){
   document.getElementById("progressLine").textContent = "Remaining: " + (session.queue.length + 1) + " / studied so far: " + session.studied;
   cardEl.classList.add("card-flip-out");
   setTimeout(() => {
-    cardEl.textContent = session.current.front;
+    document.getElementById("cardFront").textContent = session.current.front;
+    const cardBack = document.getElementById("cardBack");
+    cardBack.textContent = session.current.back;
+    cardBack.classList.add("hidden");
     cardEl.dataset.flipped = "0";
     cardEl.classList.remove("card-flip-out");
+    // reset the "test yourself" input for the new card, but keep it open if the user had it open
+    document.getElementById("typeAnswerInput").value = "";
+    document.getElementById("typeAnswerFeedback").classList.add("hidden");
     autoSpeak("front", session.deckId);
   }, 140);
 }
@@ -1023,7 +1059,7 @@ document.getElementById("card").onclick = () => {
   if(cardEl.dataset.flipped === "0"){
     cardEl.classList.add("card-flip-out");
     setTimeout(() => {
-      cardEl.textContent = session.current.back;
+      document.getElementById("cardBack").classList.remove("hidden"); // front stays visible too
       cardEl.dataset.flipped = "1";
       cardEl.classList.remove("card-flip-out");
       document.getElementById("answerArea").classList.remove("hidden");
@@ -1033,6 +1069,17 @@ document.getElementById("card").onclick = () => {
       document.getElementById("ivGood").textContent = "(" + previewInterval(session.current,3) + ")";
       document.getElementById("ivEasy").textContent = "(" + previewInterval(session.current,4) + ")";
       autoSpeak("back", session.deckId);
+
+      // show a gentle self-check comparison if they typed a guess
+      const typed = document.getElementById("typeAnswerInput").value.trim();
+      const fb = document.getElementById("typeAnswerFeedback");
+      if(typed){
+        const isMatch = typed.toLowerCase() === session.current.back.trim().toLowerCase();
+        fb.textContent = (isMatch ? "✓ Matches! " : "") + 'You typed: "' + typed + '"';
+        fb.classList.remove("hidden");
+      } else {
+        fb.classList.add("hidden");
+      }
     }, 140);
   }
 };
@@ -1040,12 +1087,24 @@ document.getElementById("card").onclick = () => {
 document.getElementById("speakBtn").onclick = (e) => {
   e.stopPropagation();
   if(!session.current) return;
-  const cardEl = document.getElementById("card");
-  const flipped = cardEl.dataset.flipped === "1";
-  const face = flipped ? session.current.back : session.current.front;
-  const key = "study_" + session.current.id + "_" + (flipped ? "back" : "front");
-  speakProgressive(face, key);
+  const key = "study_" + session.current.id + "_front";
+  speakProgressive(session.current.front, key);
 };
+
+document.getElementById("typeToggleBtn").onclick = (e) => {
+  e.stopPropagation();
+  const wrap = document.getElementById("typeAnswerWrap");
+  wrap.classList.toggle("hidden");
+  if(!wrap.classList.contains("hidden")) document.getElementById("typeAnswerInput").focus();
+};
+
+document.getElementById("typeAnswerInput").addEventListener("click", (e) => e.stopPropagation());
+document.getElementById("typeAnswerInput").addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){
+    e.preventDefault();
+    document.getElementById("card").click();
+  }
+});
 
 document.querySelectorAll(".ratebtns button").forEach(btn => {
   btn.onclick = (e) => {
