@@ -1267,5 +1267,216 @@ function refreshAll(){
 }
 refreshAll();
 </script>
+  <!-- ===== FLASHCARDS UPGRADE: paste this whole block right before the final </body> ===== -->
+<style>
+/* sticky rating bar + sticky-safe overflow (overflow-x:hidden on body broke position:sticky) */
+body{overflow-x:clip}
+#card{padding:28px 18px;min-height:90px}
+#answerArea{position:sticky;bottom:0;z-index:5;margin-top:8px;padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:var(--color-surface);border-top:1px solid var(--color-border)}
+#card mark{background:var(--color-primary);color:var(--color-text-on-primary);border-radius:3px;padding:0 3px}
+.blank{border-bottom:2px solid var(--color-primary);color:transparent;user-select:none}
+.expandBtn{margin-top:10px;padding:3px 10px;font-size:12px;min-height:0}
+.expanded{font-size:16px;margin-top:8px;color:var(--color-text-muted)}
+#rulesBox{font-size:13px}
+</style>
+<script>
+(function(){
+const S = DATA.settings;
+if(S.germanPreset === undefined) S.germanPreset = true;
+if(S.speakForm === undefined) S.speakForm = "full";   // full | sing | plural | raw
+if(S.rules === undefined) S.rules = "";
+
+/* safer saving */
+saveData = function(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); }catch(e){ console.warn("Save failed", e); } };
+
+/* ---------- German noun preset:  "s Auto,s"  /  "-e Frau,-n"  /  "r Mann,¨er" ---------- */
+const ART = { r:"der", e:"die", s:"das" };
+const UM = { a:"ä", o:"ö", u:"ü", A:"Ä", O:"Ö", U:"Ü" };
+const umlaut = w => w.replace(/(au|a|o|u)(?!.*(?:au|a|o|u))/i, m => m.length === 2 ? UM[m[0]] + m[1] : UM[m]);
+const NOUN_RE = /^\s*-?([res])\s+([^,\s][^,]*?)\s*(?:,\s*(.*?))?\s*$/;
+const PL_RE = /^[-=]?(¨|")?(en|er|nen|se|e|n|s)?$/;
+
+function parseNoun(text){
+  const m = String(text).match(NOUN_RE);
+  if(!m) return null;
+  const art = ART[m[1]], word = m[2], p = (m[3] || "").trim();
+  let plural = "", short = "";
+  if(p){
+    const pm = p.match(PL_RE);
+    if(pm){
+      plural = (pm[1] ? umlaut(word) : word) + (pm[2] || "");
+      short = "-" + (pm[1] ? "¨" : "") + (pm[2] || "");
+    } else { plural = p.replace(/^die\s+/i, ""); short = plural; }
+  }
+  return {
+    display: m[1] + " " + word + (p ? "," + short : ""),
+    sing: art + " " + word,
+    plural: plural ? "die " + plural : "",
+    full: art + " " + word + (plural ? ", die " + plural : "")
+  };
+}
+function speechText(text){
+  if(!S.germanPreset) return text;
+  const n = parseNoun(text);
+  if(!n || S.speakForm === "raw") return text;
+  if(S.speakForm === "sing") return n.sing;
+  if(S.speakForm === "plural") return n.plural || n.sing;
+  return n.full;
+}
+const _speak = speak;
+speak = function(text, lang, rate){ return _speak(speechText(text), lang, rate); };
+
+/* ---------- Custom rules ----------
+   [front|back|both] [word|text]: [if has "x" then] SEL [else SEL]
+   SEL = first|last|2nd|3rd|2nd-last "text" [-> mark|blank]                         */
+const SEL_RE = /^(first|last|(\d+)(?:st|nd|rd|th)?(-last)?)\s+"([^"]+)"(?:\s*->\s*(mark|blank))?$/i;
+function parseSel(s){
+  const m = s.trim().match(SEL_RE);
+  if(!m) throw new Error("can't read: " + s.trim());
+  const k = m[1].toLowerCase();
+  let n = 1, fromEnd = false;
+  if(k === "last") fromEnd = true; else if(k !== "first"){ n = +m[2]; fromEnd = !!m[3]; }
+  return { n, fromEnd, text: m[4], act: (m[5] || "mark").toLowerCase() };
+}
+function parseRule(line){
+  let side = "both", scope = "word", body = line;
+  const h = line.match(/^(front|back|both)?\s*(word|text)?\s*:\s*(.*)$/i);
+  if(h){ side = (h[1] || "both").toLowerCase(); scope = (h[2] || "word").toLowerCase(); body = h[3]; }
+  const c = body.match(/^if\s+has\s+"([^"]+)"\s+then\s+(.+?)(?:\s+else\s+(.+))?$/i);
+  if(c) return { side, scope, cond: c[1], a: parseSel(c[2]), b: c[3] ? parseSel(c[3]) : null };
+  return { side, scope, cond: null, a: parseSel(body), b: null };
+}
+function parseRules(src){
+  const rules = [], errors = [];
+  src.split("\n").forEach((line, i) => {
+    line = line.trim();
+    if(!line || line[0] === "#") return;
+    try{ rules.push(parseRule(line)); }catch(e){ errors.push("Line " + (i + 1) + ": " + e.message); }
+  });
+  return { rules, errors };
+}
+let RULES = parseRules(S.rules);
+
+function findRange(str, sel){
+  const low = str.toLowerCase(), t = sel.text.toLowerCase(), pos = [];
+  let i = 0;
+  while((i = low.indexOf(t, i)) > -1){ pos.push(i); i += t.length; }
+  const idx = sel.fromEnd ? pos.length - sel.n : sel.n - 1;
+  return idx >= 0 && pos[idx] !== undefined ? [pos[idx], pos[idx] + t.length, sel.act] : null;
+}
+function ranges(text, side){
+  const out = [];
+  RULES.rules.forEach(r => {
+    if(r.side !== "both" && r.side !== side) return;
+    const run = (s, off) => {
+      const sel = (r.cond === null || s.toLowerCase().includes(r.cond.toLowerCase())) ? r.a : r.b;
+      const g = sel && findRange(s, sel);
+      if(g) out.push([g[0] + off, g[1] + off, g[2]]);
+    };
+    if(r.scope === "text") run(text, 0);
+    else { const re = /\S+/g; let m; while((m = re.exec(text))) run(m[0], m.index); }
+  });
+  return out.sort((a, b) => a[0] - b[0]);
+}
+function markup(text, side){
+  let html = "", p = 0;
+  ranges(text, side).forEach(([a, b, act]) => {
+    if(a < p) return;
+    html += escapeHtml(text.slice(p, a));
+    const seg = escapeHtml(text.slice(a, b));
+    html += act === "blank" ? '<span class="blank">' + seg + '</span>' : "<mark>" + seg + "</mark>";
+    p = b;
+  });
+  return html + escapeHtml(text.slice(p));
+}
+function renderFace(el, text, side){
+  const n = S.germanPreset ? parseNoun(text) : null;
+  el.innerHTML = markup(n ? n.display : text, side) +
+    (n ? '<div><button class="expandBtn" type="button">▸ full form</button><div class="expanded hidden">' + escapeHtml(n.full) + "</div></div>" : "");
+}
+
+/* expand/collapse without flipping the card */
+document.getElementById("card").addEventListener("click", e => {
+  const b = e.target.closest(".expandBtn");
+  if(!b) return;
+  e.stopPropagation();
+  const ex = b.nextElementSibling;
+  ex.classList.toggle("hidden");
+  b.textContent = ex.classList.contains("hidden") ? "▸ full form" : "▾ full form";
+}, true);
+
+/* ---------- Study: render with rules/preset ---------- */
+nextCard = function(){
+  if(document.activeElement) document.activeElement.blur();
+  if(session.queue.length === 0){
+    document.getElementById("studyArea").classList.add("hidden");
+    document.getElementById("doneMsg").classList.remove("hidden");
+    refreshAll();
+    return;
+  }
+  session.current = session.queue.shift();
+  document.getElementById("answerArea").classList.add("hidden");
+  const cardEl = document.getElementById("card");
+  document.getElementById("progressLine").textContent = "Remaining: " + (session.queue.length + 1) + " / studied so far: " + session.studied;
+  cardEl.classList.add("card-flip-out");
+  setTimeout(() => {
+    renderFace(document.getElementById("cardFront"), session.current.front, "front");
+    const back = document.getElementById("cardBack");
+    renderFace(back, session.current.back, "back");
+    back.classList.add("hidden");
+    cardEl.dataset.flipped = "0";
+    cardEl.classList.remove("card-flip-out");
+    document.getElementById("typeAnswerInput").value = "";
+    document.getElementById("typeAnswerFeedback").classList.add("hidden");
+    autoSpeak("front", session.deckId);
+  }, 140);
+};
+
+/* keyboard: Space/Enter = flip, 1-4 = Again/Hard/Good/Easy */
+document.addEventListener("keydown", e => {
+  if(!session.current || !document.getElementById("studyTab").classList.contains("active")) return;
+  if(/INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName) || e.target.isContentEditable) return;
+  const c = document.getElementById("card");
+  if(c.dataset.flipped !== "1"){
+    if(e.key === " " || e.key === "Enter"){ e.preventDefault(); c.click(); }
+  } else if(["1","2","3","4"].includes(e.key)){
+    document.querySelector('.ratebtns button[data-q="' + e.key + '"]').click();
+  }
+});
+
+/* ---------- Settings UI ---------- */
+document.getElementById("settingsTab").insertAdjacentHTML("beforeend", `
+  <h2>German noun preset</h2>
+  <div class="row"><label><input type="checkbox" id="germanPreset"> Convert <code>r / e / s Word,plural</code> (or <code>-r / -e / -s</code>) into der / die / das + plural</label></div>
+  <div class="row">Spoken form:
+    <select id="speakForm">
+      <option value="full">das Auto, die Autos</option>
+      <option value="sing">das Auto (singular only)</option>
+      <option value="plural">die Autos (plural only)</option>
+      <option value="raw">Exactly as written</option>
+    </select>
+  </div>
+  <div class="small">Input <code>s Auto,s</code> or <code>s Auto,-s</code> shows <code>s Auto,-s</code>; click "full form" to expand. Plural endings: <code>-s -e -n -en -er -nen -se</code>, umlaut with <code>¨</code> (<code>r Mann,¨er</code> → die Männer), <code>-</code> = unchanged, or write the whole plural word.</div>
+
+  <h2>Card rules</h2>
+  <div class="row"><textarea id="rulesBox" rows="6" placeholder='one rule per line, e.g.
+first "-s"
+back: last "pen"
+front: if has "red" then last "a" else 2nd-last "h" -> blank'></textarea></div>
+  <div class="small" id="rulesMsg"></div>
+  <div class="small">Syntax: <code>[front|back|both] [word|text]: [if has "x" then] SEL [else SEL]</code>, where SEL is <code>first | last | 2nd | 3rd | 2nd-last "text" [-> mark|blank]</code>. Rules run per word by default (<code>text:</code> = whole face). <code>mark</code> highlights, <code>blank</code> hides it as a gap. Lines starting with # are ignored.</div>
+`);
+const gp = document.getElementById("germanPreset"), sf = document.getElementById("speakForm"), rb = document.getElementById("rulesBox"), rm = document.getElementById("rulesMsg");
+gp.checked = S.germanPreset; sf.value = S.speakForm; rb.value = S.rules;
+gp.onchange = () => { S.germanPreset = gp.checked; saveData(); };
+sf.onchange = () => { S.speakForm = sf.value; saveData(); };
+rb.oninput = () => {
+  S.rules = rb.value; RULES = parseRules(S.rules); saveData();
+  rm.className = "small" + (RULES.errors.length ? " warn" : "");
+  rm.textContent = RULES.errors.length ? RULES.errors.join(" | ") : (RULES.rules.length ? RULES.rules.length + " rule(s) active." : "");
+};
+rb.oninput();
+})();
+</script>
 </body>
 </html>
