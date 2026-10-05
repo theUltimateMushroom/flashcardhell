@@ -1478,5 +1478,129 @@ rb.oninput = () => {
 rb.oninput();
 })();
 </script>
+  <!-- ===== FLASHCARDS UPGRADE 2: 1. bloktan SONRA, </body> kapanmadan hemen önce yapıştırın ===== -->
+<style>
+/* ---------- Genel: dokunmatik, güvenli alan, odak ---------- */
+*{-webkit-tap-highlight-color:transparent}
+button,select,input,textarea{touch-action:manipulation}
+body{
+  padding-left:max(16px,env(safe-area-inset-left));
+  padding-right:max(16px,env(safe-area-inset-right));
+  max-width:min(960px,100%);
+}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--color-primary) 60%,transparent);outline-offset:2px}
+h1{font-size:clamp(19px,2.4vw + 12px,26px)}
+
+/* ---------- Gezinme: pill sekmeler ---------- */
+nav{background:color-mix(in srgb,var(--color-surface) 70%,transparent);padding:5px;border-radius:14px;border:1px solid var(--color-border);gap:4px}
+nav button{border:0;background:transparent;border-radius:10px;min-height:40px}
+nav button:hover{background:var(--color-surface-hover);box-shadow:none}
+nav button.active{box-shadow:0 3px 10px rgba(0,0,0,.2)}
+section{border-radius:16px}
+
+/* ---------- Kart: her ekranda tamamı görünür ---------- */
+#studyArea{perspective:1100px}
+#card{
+  display:flex;flex-direction:column;
+  min-height:clamp(150px,26dvh,260px);
+  max-height:calc(100dvh - 270px);          /* üstte başlık, altta puanlama çubuğu için pay */
+  overflow-y:auto;overscroll-behavior:contain;
+  padding:clamp(18px,4vw,36px) clamp(14px,4vw,32px);
+  font-size:clamp(18px,1.2vw + 13px,28px);line-height:1.35;
+  scroll-margin-bottom:130px;               /* scrollIntoView sticky çubuğun altında kalmasın */
+  background:linear-gradient(160deg,color-mix(in srgb,var(--color-bg) 92%,#fff),var(--color-bg));
+  box-shadow:0 6px 22px rgba(0,0,0,.18);
+  transform-origin:center;backface-visibility:hidden;
+  transition:transform .18s cubic-bezier(.4,0,.8,.6),box-shadow .25s ease,background-color .3s ease;
+}
+#card::before,#card::after{content:"";flex:1 0 0}   /* taşarken kırpılmadan ortalama */
+#card:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.22)}
+#card.card-flip-out{transform:rotateY(90deg) scale(.96);transition-timing-function:cubic-bezier(.4,0,1,1)}
+#cardFront,#cardBack{overflow-wrap:anywhere}
+#cardBack{color:var(--color-primary);font-weight:600}
+#cardBack:not(.hidden){animation:backIn .32s cubic-bezier(.2,.8,.2,1) both}
+@keyframes backIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes cardIn{from{opacity:0;transform:rotateY(-70deg) scale(.96)}to{opacity:1;transform:none}}
+
+/* ---------- İlerleme çubuğu ---------- */
+#sessBar{height:6px;border-radius:99px;background:color-mix(in srgb,var(--color-secondary) 25%,transparent);overflow:hidden;margin:6px 0 12px}
+#sessBar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--color-secondary),var(--color-primary));transition:width .45s cubic-bezier(.2,.8,.2,1)}
+
+/* ---------- Puanlama çubuğu: telefonda da tek satır, hep görünür ---------- */
+#answerArea{
+  margin:10px calc(-1 * clamp(14px,2vw,20px)) 0;
+  padding:10px clamp(14px,2vw,20px) calc(10px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--color-surface) 88%,transparent);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  box-shadow:0 -6px 16px rgba(0,0,0,.12);
+}
+#answerArea:not(.hidden){animation:barUp .28s cubic-bezier(.2,.8,.2,1) both}
+@keyframes barUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+#answerArea .ratebtns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+#answerArea .ratebtns button{
+  margin:0;padding:10px 2px;min-height:52px;font-size:clamp(12px,1.2vw + 9px,15px);font-weight:600;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.15;
+  color:var(--color-text);border-radius:12px;
+}
+#answerArea .ratebtns button .small{display:block;font-size:10px;font-weight:500;opacity:.85}
+.ratebtns button[data-q="1"]{background:color-mix(in srgb,#c0392b 55%,var(--color-surface))}
+.ratebtns button[data-q="2"]{background:color-mix(in srgb,#d68910 55%,var(--color-surface))}
+.ratebtns button[data-q="3"]{background:color-mix(in srgb,#27ae60 55%,var(--color-surface))}
+.ratebtns button[data-q="4"]{background:color-mix(in srgb,#2e86c1 55%,var(--color-surface))}
+.ratebtns button:hover{filter:brightness(1.08)}
+
+/* ---------- Genel buton / liste cilası ---------- */
+button{border-radius:10px;font-weight:500}
+.deckItem{border-radius:12px}
+.deckItem:hover{transform:translateY(-1px)}
+.palette-card{border-radius:14px}
+
+/* ---------- Telefon (dikey/yatay) ---------- */
+@media (max-width:640px){
+  #card{max-height:calc(100dvh - 250px);padding:18px 14px}
+  #answerArea .ratebtns button{padding:8px 0}
+  nav button{flex:1 1 calc(33.3% - 4px)}
+}
+@media (max-height:480px){            /* telefon yatay */
+  #card{max-height:calc(100dvh - 190px);min-height:90px}
+  #answerArea .ratebtns button{min-height:42px}
+}
+/* ---------- iPad / geniş ekran ---------- */
+@media (min-width:768px){ #card{max-height:calc(100dvh - 300px)} }
+@media (min-width:1100px){ body{max-width:1040px} }
+
+/* ---------- Hareketi azalt ---------- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+<script>
+(function(){
+  const card = document.getElementById("card");
+
+  /* oturum ilerleme çubuğu */
+  const bar = document.createElement("div");
+  bar.id = "sessBar"; bar.innerHTML = "<i></i>";
+  document.getElementById("progressLine").after(bar);
+  const prog = () => { bar.firstChild.style.width = Math.min(100, session.studied / (session.total || 1) * 100) + "%"; };
+  const _next = nextCard;
+  nextCard = function(){ _next(); prog(); };
+
+  /* çevirdikten sonra kartın tamamı ekrana sığsın */
+  card.addEventListener("click", () => {
+    setTimeout(() => {
+      if(card.dataset.flipped === "1") card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 330);
+  });
+
+  /* yeni kart gelişinde hafif giriş animasyonu */
+  new MutationObserver(() => {
+    if(card.dataset.flipped === "0"){
+      card.style.animation = "none"; void card.offsetWidth;
+      card.style.animation = "cardIn .3s cubic-bezier(.2,.8,.2,1) both";
+    }
+  }).observe(card, { attributes: true, attributeFilter: ["data-flipped"] });
+})();
+</script>
 </body>
 </html>
