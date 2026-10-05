@@ -1602,5 +1602,148 @@ button{border-radius:10px;font-weight:500}
   }).observe(card, { attributes: true, attributeFilter: ["data-flipped"] });
 })();
 </script>
+  <!-- ===== FLASHCARDS UPGRADE 3 (ters çalışma): 1. ve 2. bloktan SONRA, </body> öncesine yapıştırın ===== -->
+<script>
+(function(){
+const S = DATA.settings;
+if(S.reverseEnabled === undefined) S.reverseEnabled = false;   // ters çalışma kapalı başlar
+if(S.revGate === undefined) S.revGate = true;                  // ters yön, ileri yön en az 1 kez çalışılınca açılır
+if(S.shareDifficulty === undefined) S.shareDifficulty = true;  // iki yön zorluğu paylaşır
+
+/* Her kartın ters yönü kendi zamanlama durumuna sahip (aynı alan adları => SM-2/FSRS aynen çalışır) */
+function ensureRev(c){
+  if(!c.rev) c.rev = { ef:2.5, interval:0, difficulty:null, stability:null, reps:0, lapses:0, due:Date.now(), lastReview:null };
+  return c;
+}
+/* Ters yön için "görünüm": ön/arka yer değiştirir, zamanlama c.rev üzerinde yapılır */
+function view(card, dir){
+  if(dir === "fwd") return card;
+  ensureRev(card);
+  return new Proxy(card.rev, { get(t, k){
+    if(k === "front") return card.back;
+    if(k === "back") return card.front;
+    if(k === "id") return card.id + "_r";
+    if(k === "__card") return card;
+    if(k === "__dir") return "rev";
+    return t[k];
+  }});
+}
+const cardOf = v => v.__card || v;
+const dirOf  = v => v.__dir || "fwd";
+const revOk  = (c, all) => all || !S.revGate || c.reps >= 1;
+const clamp  = (x, a, b) => Math.max(a, Math.min(b, x));
+
+/* Bir yön puanlanınca diğer yön de "kartın zorluğunu" öğrenir (yumuşak, %25) */
+function shareDifficulty(v){
+  if(!S.shareDifficulty) return;
+  const c = cardOf(v), rev = dirOf(v) === "rev";
+  const me = rev ? c.rev : c, sib = rev ? c : c.rev;
+  if(!sib || sib.reps < 1) return;
+  if(S.algorithm === "sm2") sib.ef = Math.max(1.3, sib.ef + 0.25 * (me.ef - sib.ef));
+  else if(me.difficulty != null && sib.difficulty != null) sib.difficulty = clamp(sib.difficulty + 0.25 * (me.difficulty - sib.difficulty), 1, 10);
+}
+
+/* Aynı kartın iki yönü oturumda arka arkaya gelmesin */
+function spread(q){
+  const gap = Math.min(4, Math.floor(q.length / 3));
+  const key = v => cardOf(v).id;
+  for(let i = 1; i < q.length; i++){
+    const recent = q.slice(Math.max(0, i - gap), i).map(key);
+    if(!recent.includes(key(q[i]))){ continue; }
+    for(let j = i + 1; j < q.length; j++){
+      if(!recent.includes(key(q[j]))){ [q[i], q[j]] = [q[j], q[i]]; break; }
+    }
+  }
+  return q;
+}
+
+/* ---------- Arayüz ---------- */
+const dirSel = () => document.getElementById("studyDir");
+document.getElementById("studyStats").insertAdjacentHTML("beforebegin",
+  `<div class="row" id="dirRow">Yön / Direction:
+     <select id="studyDir">
+       <option value="fwd">Ön → Arka (normal)</option>
+       <option value="rev">Arka → Ön (ters)</option>
+       <option value="both">İkisi karışık</option>
+     </select></div>`);
+document.getElementById("settingsTab").insertAdjacentHTML("beforeend", `
+  <h2>Ters çalışma (Back → Front)</h2>
+  <div class="row"><label><input type="checkbox" id="revEnabled"> Ters çalışmayı etkinleştir</label></div>
+  <div class="row"><label><input type="checkbox" id="revGate"> Bir kartın ters yönü, ileri yön en az bir kez çalışılınca açılsın</label></div>
+  <div class="row"><label><input type="checkbox" id="revShare"> İki yön zorluğu paylaşsın (bir yönde zor olan kart diğerinde de zorlaşır)</label></div>
+  <div class="small">Her yönün kendi tekrar takvimi vardır; ikisi de seçtiğiniz algoritmayla (FSRS veya SM-2) çalışır. Kapalıyken uygulama eskisi gibi davranır ve ters yöne hiç dokunulmaz.</div>`);
+
+function syncUI(){
+  document.getElementById("dirRow").classList.toggle("hidden", !S.reverseEnabled);
+  if(!S.reverseEnabled) dirSel().value = "fwd";
+  stats();
+}
+const rE = document.getElementById("revEnabled"), rG = document.getElementById("revGate"), rS = document.getElementById("revShare");
+rE.checked = S.reverseEnabled; rG.checked = S.revGate; rS.checked = S.shareDifficulty;
+rE.onchange = () => { S.reverseEnabled = rE.checked; saveData(); syncUI(); };
+rG.onchange = () => { S.revGate = rG.checked; saveData(); stats(); };
+rS.onchange = () => { S.shareDifficulty = rS.checked; saveData(); };
+
+/* Çalışma ekranındaki "vadesi gelen" sayısı yöne göre */
+function stats(){
+  const id = document.getElementById("studyDeckSelect").value, el = document.getElementById("studyStats");
+  if(!id){ el.textContent = ""; return; }
+  const d = DATA.decks[id], now = Date.now(), dir = S.reverseEnabled ? dirSel().value : "fwd";
+  let due = 0, total = 0;
+  d.cards.forEach(c => {
+    ensureRev(c);
+    if(dir !== "rev"){ total++; if(c.due <= now) due++; }
+    if(dir !== "fwd" && revOk(c, false)){ total++; if(c.rev.due <= now) due++; }
+  });
+  el.textContent = total + " çalışılabilir kart, " + due + " tanesi şimdi vadesi gelmiş.";
+}
+populateStudyStats = stats;
+document.getElementById("studyDeckSelect").onchange = stats;
+dirSel().onchange = stats;
+
+/* ---------- Oturum başlatma ---------- */
+document.getElementById("startStudyBtn").onclick = () => {
+  const deckId = document.getElementById("studyDeckSelect").value;
+  if(!deckId){ alert("Select a deck"); return; }
+  const deck = DATA.decks[deckId], all = document.getElementById("studyAllChk").checked;
+  const dir = S.reverseEnabled ? dirSel().value : "fwd", now = Date.now(), q = [];
+  deck.cards.forEach(c => {
+    ensureRev(c);
+    if(dir !== "rev" && (all || c.due <= now)) q.push(view(c, "fwd"));
+    if(dir !== "fwd" && revOk(c, all) && (all || c.rev.due <= now)) q.push(view(c, "rev"));
+  });
+  if(!q.length){ alert("Çalışılacak kart yok" + (all ? "" : " (vadesi gelen yok — 'Study all' deneyin)")); return; }
+  q.sort(() => Math.random() - 0.5);
+  session = { deckId, queue: spread(q), current: null, studied: 0, total: q.length };
+  document.getElementById("studyArea").classList.remove("hidden");
+  document.getElementById("doneMsg").classList.add("hidden");
+  nextCard();
+};
+
+/* ---------- Puanlama: seçili yönün takvimi güncellenir ---------- */
+document.querySelectorAll(".ratebtns button").forEach(btn => {
+  btn.onclick = e => {
+    e.stopPropagation();
+    const grade = +btn.dataset.q, v = session.current;
+    if(!v) return;
+    scheduleCard(v, grade);
+    shareDifficulty(v);
+    saveData();
+    session.studied++;
+    if(grade === 1) session.queue.splice(Math.min(session.queue.length, 3), 0, v);
+    nextCard();
+  };
+});
+
+/* Yön rozeti */
+const _n = nextCard;
+nextCard = function(){
+  _n();
+  const v = session.current;
+  if(v && session.queue !== undefined) document.getElementById("progressLine").textContent += dirOf(v) === "rev" ? "  ·  ⇄ ters" : "  ·  → normal";
+};
+syncUI();
+})();
+</script>
 </body>
 </html>
