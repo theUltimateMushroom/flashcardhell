@@ -1745,5 +1745,123 @@ nextCard = function(){
 syncUI();
 })();
 </script>
+  <!-- ===== FLASHCARDS UPGRADE 4 (3-column import): paste AFTER blocks 1-3, before </body> ===== -->
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+
+/* ---------- UI: option on the Import tab ---------- */
+$("skipHeader").closest(".row").insertAdjacentHTML("afterend", `
+  <div class="row"><label><input type="checkbox" id="threeCol"> 3-column mode: displayed German · read (spoken) German · Turkish</label></div>
+  <div class="small" id="threeColHelp">Example with face separator <code>;</code>:<br>
+    <code>s Auto,-s;das Auto, die Autos;araba</code><br>
+    Column 1 is shown on the card front, column 2 is what the voice reads (leave empty to read column 1), column 3 is the Turkish back. If a field contains the separator, wrap it in "quotes" or pick another separator (; | tab).</div>`);
+const syncHelp = () => $("threeColHelp").classList.toggle("hidden", !$("threeCol").checked);
+$("threeCol").onchange = syncHelp; syncHelp();
+
+/* ---------- Parsing ---------- */
+function parseThree(text, cardSep, faceSep, skipHeader){
+  let chunks = text.split(cardSep).map(c => c.trim()).filter(Boolean);
+  if(skipHeader) chunks = chunks.slice(1);
+  const parsed = [], errors = [];
+  chunks.forEach((chunk, i) => {
+    const f = splitFaces(chunk, faceSep);
+    if(f.length < 3 || !f[0] || !f[2]) errors.push("Line " + (i + 1) + ": need 3 columns (displayed, read, Turkish) -> " + JSON.stringify(chunk));
+    else if(f.length > 3) errors.push("Line " + (i + 1) + ": more than 3 columns — quote fields containing the separator or use another separator -> " + JSON.stringify(chunk));
+    else parsed.push({ front: f[0], speak: f[1], back: f[2] });
+  });
+  return { parsed, errors };
+}
+
+/* ---------- Preview / confirm (replace the originals, normal mode unchanged) ---------- */
+$("previewBtn").onclick = () => {
+  const msg = $("importMsg"), text = $("importText").value;
+  if(!text.trim()){ msg.textContent = "Nothing to import - paste text or upload a file."; return; }
+  const cardSep = resolveSep($("cardSepSelect").value, $("cardSepCustom").value);
+  const faceSep = resolveSep($("faceSepSelect").value, $("faceSepCustom").value);
+  if(!cardSep || !faceSep){ msg.textContent = "Please specify custom separators."; return; }
+  const three = $("threeCol").checked, skip = $("skipHeader").checked;
+  const { parsed, errors } = three ? parseThree(text, cardSep, faceSep, skip) : parseImport(text, cardSep, faceSep, skip);
+  lastParsed = parsed;
+  let html = `<p>Parsed <strong>${parsed.length}</strong> cards.` + (errors.length ? ` <span class="warn">${errors.length} lines had errors.</span>` : "") + "</p>";
+  if(parsed.length){
+    html += "<table><tr><th>#</th>" + (three ? "<th>Displayed (DE)</th><th>Read (DE)</th><th>Turkish</th>" : "<th>Front</th><th>Back</th>") + "</tr>";
+    parsed.slice(0, 50).forEach((p, i) => {
+      html += `<tr><td>${i + 1}</td><td>${escapeHtml(p.front)}</td>` + (three ? `<td>${escapeHtml(p.speak || "—")}</td>` : "") + `<td>${escapeHtml(p.back)}</td></tr>`;
+    });
+    html += "</table>" + (parsed.length > 50 ? `<p class="small">...and ${parsed.length - 50} more</p>` : "");
+  }
+  if(errors.length) html += "<details><summary class='warn'>Show errors</summary><ul>" + errors.map(e => `<li>${escapeHtml(e)}</li>`).join("") + "</ul></details>";
+  $("previewArea").innerHTML = html;
+  msg.textContent = "";
+  $("confirmImportBtn").disabled = parsed.length === 0;
+};
+
+$("confirmImportBtn").onclick = () => {
+  if(!lastParsed.length) return;
+  let deckId = $("importDeckSelect").value;
+  const newName = $("importNewDeckName").value.trim();
+  if(newName) deckId = createDeck(newName);
+  if(!deckId){ alert("Select a target deck or enter a new deck name."); return; }
+  const deck = DATA.decks[deckId];
+  lastParsed.forEach(p => {
+    const c = newCard(p.front, p.back);
+    if(p.speak) c.speak = p.speak;            // custom spoken form
+    deck.cards.push(c);
+  });
+  saveData();
+  $("importMsg").textContent = "Imported " + lastParsed.length + " cards into \"" + deck.name + "\".";
+  $("confirmImportBtn").disabled = true;
+  lastParsed = [];
+  $("previewArea").innerHTML = ""; $("importText").value = ""; $("importNewDeckName").value = "";
+  refreshAll();
+};
+
+/* ---------- Speech: use the custom read form when a card has one ---------- */
+const _speak = speak;
+speak = function(text, lang, rate){
+  let out = text;
+  if(text) for(const d of Object.values(DATA.decks)){
+    const c = d.cards.find(c => c.speak && c.front === text);
+    if(c){ out = c.speak; break; }
+  }
+  return _speak(out, lang, rate);
+};
+
+/* ---------- Browse: editable "Read" column (only in decks that have one) ---------- */
+const _rb = renderBrowse;
+renderBrowse = function(){
+  _rb();
+  const id = $("browseDeckSelect").value, tbl = document.querySelector("#browseArea table");
+  if(!id || !tbl) return;
+  const deck = DATA.decks[id];
+  if(!deck.cards.some(c => c.speak)) return;
+  const th = document.createElement("th"); th.textContent = "Read (spoken)";
+  tbl.rows[0].insertBefore(th, tbl.rows[0].cells[2]);
+  for(let i = 1; i < tbl.rows.length; i++){
+    const tr = tbl.rows[i], card = deck.cards.find(c => c.id === tr.dataset.id);
+    if(!card) continue;
+    const td = document.createElement("td");
+    td.contentEditable = "true"; td.textContent = card.speak || "";
+    td.onblur = () => { card.speak = td.textContent.trim() || undefined; saveData(); };
+    tr.insertBefore(td, tr.cells[2]);
+  }
+};
+$("browseDeckSelect").onchange = renderBrowse;
+
+/* ---------- Export: 3 columns when the deck has read forms ---------- */
+$("exportBtn").onclick = () => {
+  const id = $("browseDeckSelect").value;
+  if(!id){ alert("Select a deck"); return; }
+  const deck = DATA.decks[id], three = deck.cards.some(c => c.speak);
+  const q = s => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
+  const lines = deck.cards.map(c => three ? q(c.front) + "," + q(c.speak) + "," + q(c.back) : q(c.front) + "," + q(c.back));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+  a.download = deck.name.replace(/[^a-z0-9]/gi, "_") + ".csv";
+  a.click(); URL.revokeObjectURL(a.href);
+};
+})();
+</script>
 </body>
 </html>
